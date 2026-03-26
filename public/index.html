@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InBody Fitness CRM</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --bg2: #161b27; --bg3: #1e2536; --border: #2a3347; --border2: #374159;
+      --primary: #3b82f6; --green: #22c55e; --yellow: #f59e0b; --red: #ef4444;
+      --text: #f1f5f9; --muted: #8b9ab5; --dim: #4a5568;
+    }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; }
+    a { color: inherit; text-decoration: none; }
+    button { cursor: pointer; font-family: inherit; }
+
+    /* Layout */
+    .app { display: flex; flex-direction: column; height: 100vh; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .logo { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+    .nav { display: flex; gap: 4px; }
+    .nav-btn { background: none; border: none; padding: 6px 14px; border-radius: 6px; color: var(--muted); font-size: 13px; font-weight: 600; transition: all 0.15s; }
+    .nav-btn.active, .nav-btn:hover { background: var(--bg3); color: var(--text); }
+    .content { flex: 1; overflow-y: auto; padding: 24px; }
+
+    /* Stats */
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+    .stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
+    .stat-value { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
+    .stat-sub { font-size: 11px; color: var(--dim); margin-top: 4px; }
+
+    /* Panel */
+    .panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+    .panel-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .panel-title { font-size: 13px; font-weight: 700; }
+    .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 20px; background: rgba(59,130,246,.15); color: var(--primary); border: 1px solid rgba(59,130,246,.25); }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 10px 16px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    td { padding: 10px 16px; border-bottom: 1px solid var(--border); color: var(--text); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg3); }
+    .clickable { cursor: pointer; }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); transition: all .15s; }
+    .btn:hover { background: var(--border); }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn.primary:hover { background: #2563eb; }
+    .btn.sm { padding: 4px 8px; font-size: 11px; }
+    .btn.danger { border-color: rgba(239,68,68,.4); color: var(--red); }
+
+    /* Member detail */
+    .back-btn { background: none; border: none; color: var(--muted); font-size: 13px; padding: 0; margin-bottom: 20px; display: flex; align-items: center; gap: 6px; }
+    .back-btn:hover { color: var(--text); }
+    .member-header { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 20px; display: flex; align-items: center; gap: 16px; }
+    .member-avatar { width: 48px; height: 48px; background: rgba(59,130,246,.15); border: 1px solid rgba(59,130,246,.3); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .member-id { font-size: 18px; font-weight: 800; }
+    .member-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+    @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
+
+    /* Notes */
+    .note-list { padding: 0; }
+    .note-item { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 8px; }
+    .note-item:last-child { border-bottom: none; }
+    .note-text { font-size: 13px; color: var(--text); line-height: 1.6; flex: 1; }
+    .note-meta { font-size: 11px; color: var(--dim); margin-top: 4px; }
+    .note-form { padding: 14px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+    textarea { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 10px; font-size: 13px; font-family: inherit; resize: none; width: 100%; outline: none; }
+    .input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 7px 10px; font-size: 13px; font-family: inherit; outline: none; }
+
+    /* Status badges */
+    .st { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+    .st-success { background: rgba(34,197,94,.15);  color: var(--green);  border: 1px solid rgba(34,197,94,.3); }
+    .st-pending  { background: rgba(59,130,246,.15); color: var(--primary); border: 1px solid rgba(59,130,246,.3); }
+    .st-error    { background: rgba(239,68,68,.15);  color: var(--red);    border: 1px solid rgba(239,68,68,.3); }
+    .st-skipped  { background: rgba(139,154,181,.1); color: var(--muted);  border: 1px solid rgba(139,154,181,.2); }
+
+    /* Chart container */
+    .chart-wrap { padding: 16px; }
+
+    /* Spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 18px; height: 18px; border: 2px solid var(--border2); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
+    .empty { padding: 40px; text-align: center; color: var(--dim); }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const { createApp, ref, computed, onMounted, watch, nextTick } = Vue
+
+createApp({
+  template: `
+    <div class="app">
+      <header>
+        <div class="logo">🏋️ InBody Fitness CRM</div>
+        <nav class="nav">
+          <button class="nav-btn" :class="{active: view==='dashboard'}" @click="view='dashboard'">Dashboard</button>
+          <button class="nav-btn" :class="{active: view==='events'}"    @click="view='events'">Events</button>
+          <button class="nav-btn" :class="{active: view==='member'}"    @click="view='member'" style="display:none">Member</button>
+        </nav>
+        <button class="btn" @click="testWebhook">⚡ Simulate Event</button>
+      </header>
+
+      <div class="content">
+        <!-- Dashboard -->
+        <div v-if="view==='dashboard'">
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-label">Today's Measurements</div>
+              <div class="stat-value">{{ stats.todayMeasurements ?? '—' }}</div>
+              <div class="stat-sub">via webhook</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Unique Members</div>
+              <div class="stat-value">{{ stats.totalMembers ?? '—' }}</div>
+              <div class="stat-sub">in local DB</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">7-Day Measurements</div>
+              <div class="stat-value">{{ stats.weekMeasurements ?? '—' }}</div>
+              <div class="stat-sub">this week</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">API</div>
+              <div class="stat-value" :style="{color: stats.apiConfigured ? 'var(--green)' : 'var(--yellow)', fontSize:'18px'}">
+                {{ stats.apiConfigured ? '● Connected' : '● No Config' }}
+              </div>
+              <div class="stat-sub">{{ stats.apiConfigured ? 'Auto-fetch enabled' : 'Set .env to enable' }}</div>
+            </div>
+          </div>
+
+          <!-- Recent events preview -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">Recent Events <span class="badge">{{events.length}}</span></span>
+              <button class="btn sm" @click="view='events'">View All</button>
+            </div>
+            <div v-if="!events.length" class="empty">No events yet. Click ⚡ Simulate Event to test.</div>
+            <table v-else>
+              <thead><tr>
+                <th>User ID</th><th>Equipment</th><th>Measured At</th><th>Status</th><th></th>
+              </tr></thead>
+              <tbody>
+                <tr v-for="e in events.slice(0,8)" :key="e.id" class="clickable" @click="openMember(e.user_id)">
+                  <td style="font-family:monospace">{{ e.user_id }}</td>
+                  <td>{{ e.equip || '—' }}</td>
+                  <td>{{ fmtDatetime(e.test_at) }}</td>
+                  <td><span :class="'st st-'+e.fetch_status.split('_')[0]">{{ e.fetch_status }}</span></td>
+                  <td><button class="btn sm" @click.stop="openMember(e.user_id)">Profile →</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Events list -->
+        <div v-if="view==='events'">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">All Webhook Events <span class="badge">{{events.length}}</span></span>
+              <div style="display:flex;gap:8px">
+                <input class="input" v-model="eventSearch" placeholder="Filter by User ID…" style="width:200px" />
+              </div>
+            </div>
+            <div v-if="!filteredEvents.length" class="empty">No events.</div>
+            <table v-else>
+              <thead><tr>
+                <th>User ID</th><th>Equipment</th><th>Measured At</th><th>Received</th><th>Status</th><th></th>
+              </tr></thead>
+              <tbody>
+                <tr v-for="e in filteredEvents" :key="e.id" class="clickable" @click="openMember(e.user_id)">
+                  <td style="font-family:monospace">{{ e.user_id }}</td>
+                  <td>{{ e.equip || '—' }}</td>
+                  <td>{{ fmtDatetime(e.test_at) }}</td>
+                  <td style="color:var(--muted)">{{ fmtAgo(e.received_at) }}</td>
+                  <td><span :class="'st st-'+e.fetch_status.split('_')[0]">{{ e.fetch_status }}</span></td>
+                  <td><button class="btn sm" @click.stop="openMember(e.user_id)">Profile →</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Member Detail -->
+        <div v-if="view==='member'">
+          <button class="back-btn" @click="view='dashboard'">← Back to Dashboard</button>
+
+          <div class="member-header">
+            <div class="member-avatar">👤</div>
+            <div>
+              <div class="member-id">{{ currentUserId }}</div>
+              <div class="member-sub">{{ memberHistory.length }} measurements recorded</div>
+            </div>
+            <div style="margin-left:auto">
+              <button class="btn" @click="loadMemberInbody" :disabled="loadingInbody">
+                <span v-if="loadingInbody" class="spinner"></span>
+                {{ loadingInbody ? '' : '↻' }} Refresh from API
+              </button>
+            </div>
+          </div>
+
+          <div class="detail-grid">
+            <!-- Left: history + chart -->
+            <div>
+              <!-- Chart -->
+              <div class="panel" v-if="chartSeries.length">
+                <div class="panel-header"><span class="panel-title">Body Composition Trend</span></div>
+                <div class="chart-wrap"><canvas ref="chartCanvas" height="220"></canvas></div>
+              </div>
+
+              <!-- Measurement history from DB -->
+              <div class="panel">
+                <div class="panel-header">
+                  <span class="panel-title">Measurement History (DB)</span>
+                </div>
+                <div v-if="!memberHistory.length" class="empty">No events for this member yet.</div>
+                <table v-else>
+                  <thead><tr><th>Measured At</th><th>Equipment</th><th>Status</th><th>InBody Data</th></tr></thead>
+                  <tbody>
+                    <tr v-for="e in memberHistory" :key="e.id">
+                      <td>{{ fmtDatetime(e.test_at) }}</td>
+                      <td>{{ e.equip || '—' }}</td>
+                      <td><span :class="'st st-'+e.fetch_status.split('_')[0]">{{ e.fetch_status }}</span></td>
+                      <td style="font-size:12px;color:var(--muted)">
+                        <span v-if="e.inbody_data">
+                          WT {{ e.inbody_data.WT }}kg · SMM {{ e.inbody_data.SMM }}kg · {{ e.inbody_data.PBF }}%
+                        </span>
+                        <span v-else>—</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Right: notes -->
+            <div>
+              <div class="panel" style="position:sticky;top:24px">
+                <div class="panel-header"><span class="panel-title">📝 Member Notes</span></div>
+                <div class="note-list">
+                  <div v-if="!notes.length" class="empty" style="padding:24px">No notes yet.</div>
+                  <div v-for="n in notes" :key="n.id" class="note-item">
+                    <div>
+                      <div class="note-text">{{ n.note }}</div>
+                      <div class="note-meta">{{ fmtDate(n.created_at) }}</div>
+                    </div>
+                    <button class="btn sm danger" @click="deleteNote(n.id)">✕</button>
+                  </div>
+                </div>
+                <div class="note-form">
+                  <textarea v-model="newNote" rows="2" placeholder="Add a note about this member…"
+                    @keydown.ctrl.enter="addNote" @keydown.meta.enter="addNote"></textarea>
+                  <button class="btn primary" @click="addNote" :disabled="!newNote.trim()" style="align-self:flex-end">Add</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `,
+
+  setup() {
+    const view = ref('dashboard')
+    const stats = ref({})
+    const events = ref([])
+    const eventSearch = ref('')
+    const currentUserId = ref('')
+    const memberHistory = ref([])
+    const notes = ref([])
+    const newNote = ref('')
+    const loadingInbody = ref(false)
+    const chartSeries = ref([])
+    const chartCanvas = ref(null)
+    let chartInstance = null
+    let refreshTimer = null
+
+    const filteredEvents = computed(() =>
+      eventSearch.value
+        ? events.value.filter(e => e.user_id.toLowerCase().includes(eventSearch.value.toLowerCase()))
+        : events.value
+    )
+
+    async function apiFetch(path, opts = {}) {
+      const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts })
+      return r.json()
+    }
+
+    async function loadDashboard() {
+      const [s, e] = await Promise.all([apiFetch('/api/stats'), apiFetch('/api/events?limit=100')])
+      stats.value = s
+      events.value = e
+    }
+
+    async function openMember(userId) {
+      currentUserId.value = userId
+      view.value = 'member'
+      chartSeries.value = []
+      if (chartInstance) { chartInstance.destroy(); chartInstance = null }
+      const [hist, n] = await Promise.all([
+        apiFetch(`/api/members/${userId}/history`),
+        apiFetch(`/api/members/${userId}/notes`),
+      ])
+      memberHistory.value = hist.map(r => ({ ...r, inbody_data: r.inbody_data ? (typeof r.inbody_data === 'string' ? JSON.parse(r.inbody_data) : r.inbody_data) : null }))
+      notes.value = n
+      buildChart(memberHistory.value)
+    }
+
+    async function loadMemberInbody() {
+      if (!currentUserId.value) return
+      loadingInbody.value = true
+      try {
+        const data = await apiFetch(`/api/members/${currentUserId.value}/inbody`)
+        if (Array.isArray(data) && data.length) {
+          chartSeries.value = data
+          buildChart(data.map(d => ({ inbody_data: d, test_at: d.datetimes })))
+        }
+      } catch (e) { console.error(e) }
+      finally { loadingInbody.value = false }
+    }
+
+    function buildChart(rows) {
+      const withData = rows.filter(r => r.inbody_data)
+      if (!withData.length) return
+      chartSeries.value = withData
+
+      nextTick(() => {
+        if (!chartCanvas.value) return
+        if (chartInstance) chartInstance.destroy()
+        const labels = withData.map(r => fmtDatetime(r.test_at || r.inbody_data?.datetimes))
+        const mk = (key, label, color) => ({
+          label, borderColor: color, backgroundColor: color + '22',
+          data: withData.map(r => r.inbody_data?.[key] ?? null),
+          borderWidth: 2, pointRadius: 4, tension: 0.3, fill: false, spanGaps: true,
+        })
+        chartInstance = new Chart(chartCanvas.value, {
+          type: 'line',
+          data: { labels, datasets: [mk('WT','Weight (kg)','#3b82f6'), mk('SMM','SMM (kg)','#22c55e'), mk('PBF','Body Fat % ','#ef4444')] },
+          options: {
+            responsive: true, interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } } },
+            scales: {
+              x: { ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 45 }, grid: { color: '#1e293b' } },
+              y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } },
+            },
+          },
+        })
+      })
+    }
+
+    async function addNote() {
+      if (!newNote.value.trim()) return
+      const n = await apiFetch(`/api/members/${currentUserId.value}/notes`, {
+        method: 'POST', body: JSON.stringify({ note: newNote.value.trim() }),
+      })
+      notes.value.unshift(n)
+      newNote.value = ''
+    }
+
+    async function deleteNote(id) {
+      await apiFetch(`/api/members/${currentUserId.value}/notes/${id}`, { method: 'DELETE' })
+      notes.value = notes.value.filter(n => n.id !== id)
+    }
+
+    async function testWebhook() {
+      await apiFetch('/api/test-webhook', { method: 'POST', body: '{}' })
+      await loadDashboard()
+    }
+
+    // ── Formatters ────────────────────────────────────────────────────────────
+    function fmtDatetime(s) {
+      if (!s) return '—'
+      if (s.length === 14) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)} ${s.slice(8,10)}:${s.slice(10,12)}`
+      return new Date(s).toLocaleDateString()
+    }
+    function fmtDate(s) {
+      return s ? new Date(s).toLocaleDateString() : '—'
+    }
+    function fmtAgo(s) {
+      if (!s) return '—'
+      const d = Date.now() - new Date(s).getTime()
+      if (d < 60000) return `${Math.floor(d/1000)}s ago`
+      if (d < 3600000) return `${Math.floor(d/60000)}m ago`
+      return new Date(s).toLocaleTimeString()
+    }
+
+    onMounted(() => {
+      loadDashboard()
+      refreshTimer = setInterval(loadDashboard, 5000)
+    })
+
+    return {
+      view, stats, events, eventSearch, filteredEvents, currentUserId,
+      memberHistory, notes, newNote, loadingInbody, chartSeries, chartCanvas,
+      openMember, loadMemberInbody, addNote, deleteNote, testWebhook,
+      fmtDatetime, fmtDate, fmtAgo,
+    }
+  },
+}).mount('#app')
+</script>
+</body>
+</html>
